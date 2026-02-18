@@ -8,15 +8,12 @@ import plotly.graph_objects as go
 from datetime import datetime, timezone
 import os
 
-# 1. PAGE CONFIGURATION
 st.set_page_config(
     page_title="LetsGoF1 | Ultimate Dashboard",
     page_icon="🏎️",
     layout="wide",
     initial_sidebar_state="expanded"
 )
-
-# 2. SETUP CACHE & FASTF1
 cache_dir = 'f1_cache'
 if not os.path.exists(cache_dir):
     os.makedirs(cache_dir)
@@ -24,7 +21,6 @@ if not os.path.exists(cache_dir):
 fastf1.Cache.enable_cache(cache_dir)
 fastf1.plotting.setup_mpl(misc_mpl_mods=False)
 
-# 3. CUSTOM CSS
 st.markdown("""
 <style>
     .stApp { background-color: #0e0e10; color: #e0e0e0; }
@@ -35,8 +31,6 @@ st.markdown("""
     .stButton>button:hover { background-color: #cc0000; color: white; }
 </style>
 """, unsafe_allow_html=True)
-
-# 4. HELPER FUNCTIONS
 @st.cache_data
 def get_schedule(year):
     try:
@@ -52,12 +46,10 @@ def load_session(year, race_name, session_type='R'):
     return session
 
 def get_next_race(schedule):
-    # Fix: Use UTC for comparison
     now = pd.Timestamp.now('UTC')
     
     if not schedule.empty:
         date_col = 'Session5Date' if 'Session5Date' in schedule.columns else 'EventDate'
-        # Fix: Force UTC conversion
         schedule[date_col] = pd.to_datetime(schedule[date_col], utc=True)
         
         future_races = schedule[schedule[date_col] >= now]
@@ -273,6 +265,8 @@ def main():
         st.title("About LetsGoF1")
         st.info("Built with Python & Streamlit")
         st.write("Data Source: FastF1 (Open Source)")
+        st.write("Build By Danvanthram KK")
 
 if __name__ == "__main__":
+
     main()
