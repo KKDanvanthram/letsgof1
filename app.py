@@ -14,6 +14,7 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
 cache_dir = 'f1_cache'
 if not os.path.exists(cache_dir):
     os.makedirs(cache_dir)
@@ -31,6 +32,7 @@ st.markdown("""
     .stButton>button:hover { background-color: #cc0000; color: white; }
 </style>
 """, unsafe_allow_html=True)
+
 @st.cache_data
 def get_schedule(year):
     try:
@@ -45,6 +47,15 @@ def load_session(year, race_name, session_type='R'):
     session.load()
     return session
 
+@st.cache_resource
+def get_yearly_track_record(year, race_name):
+    try:
+        q_session = fastf1.get_session(year, race_name, 'Q')
+        q_session.load(telemetry=False, weather=False, messages=False)
+        return q_session.laps.pick_fastest()
+    except Exception:
+        return None
+
 def get_next_race(schedule):
     now = pd.Timestamp.now('UTC')
     
@@ -57,7 +68,6 @@ def get_next_race(schedule):
             return future_races.iloc[0], date_col
     return None, None
 
-# 5. MAIN APP
 def main():
     st.sidebar.image("https://upload.wikimedia.org/wikipedia/commons/thumb/3/33/F1.svg/1200px-F1.svg.png", width=100)
     st.sidebar.title("LetsGoF1")
@@ -68,7 +78,6 @@ def main():
     
     page = st.sidebar.radio("Navigation", ["🏠 Home Hub", "📊 Race Analysis", "🏎️ Driver Battle", "ℹ️ About"])
 
-    # --- HOME PAGE ---
     if page == "🏠 Home Hub":
         st.title(f"📅 {selected_year} Season Command Center")
         
@@ -107,13 +116,11 @@ def main():
         else:
             st.info("Schedule not available for this year yet.")
 
-    # --- RACE ANALYSIS ---
     elif page == "📊 Race Analysis":
         st.title("📊 Grand Prix Analytics")
         
         schedule = get_schedule(selected_year)
         
-        # Fix: Force UTC for comparison
         now = pd.Timestamp.now('UTC')
         date_col = 'Session5Date' if 'Session5Date' in schedule.columns else 'EventDate'
         schedule[date_col] = pd.to_datetime(schedule[date_col], utc=True)
@@ -136,12 +143,18 @@ def main():
             if 'session' in st.session_state and st.session_state['session'].event['EventName'] == selected_race_name:
                 session = st.session_state['session']
                 
-                tab1, tab2, tab3, tab4 = st.tabs(["🏆 Classification", "🍩 Tyre Strategy", "📉 Lap Pace", "🌧️ Weather"])
+                tab1, tab2, tab3, tab4, tab5 = st.tabs(["🏆 Classification", "🍩 Tyre Strategy", "📉 Lap Pace", "🌧️ Weather", "🗺️ Track Map"])
                 
                 with tab1:
                     results = session.results
                     cols = ['Position', 'BroadcastName', 'TeamName', 'Points', 'Time', 'Status']
-                    results_clean = results[cols].fillna(0)
+                    results_clean = results[cols].copy()
+                    
+                    results_clean['Time'] = results_clean['Time'].apply(
+                        lambda x: str(x).split()[-1][:11] if pd.notnull(x) and str(x) != 'NaT' else 'N/A'
+                    )
+                    
+                    results_clean = results_clean.fillna(0)
                     results_clean['Position'] = results_clean['Position'].astype(int)
                     st.dataframe(results_clean.set_index('Position'), use_container_width=True)
 
@@ -196,7 +209,88 @@ def main():
                     fig_weather.update_layout(template="plotly_dark", xaxis_title="Time (Minutes)")
                     st.plotly_chart(fig_weather, use_container_width=True)
 
-    # --- DRIVER BATTLE ---
+                with tab5:
+                    st.subheader(f"🗺️ Detailed Track Layout: {selected_race_name}")
+                    try:
+                        with st.spinner("Generating Detailed Track Map..."):
+                            fastest_lap = session.laps.pick_fastest()
+                            tel = fastest_lap.get_telemetry()
+                            
+                            fig_track = go.Figure()
+                            
+                            fig_track.add_trace(go.Scatter(
+                                x=tel['X'], 
+                                y=tel['Y'], 
+                                mode='markers',
+                                marker=dict(
+                                    size=5,
+                                    color=tel['Speed'],
+                                    colorscale='Inferno',
+                                    showscale=True,
+                                    colorbar=dict(title="Speed (km/h)", x=1.02)
+                                ),
+                                name='Speed Trace'
+                            ))
+                            
+                            try:
+                                circuit_info = session.get_circuit_info()
+                                corners = circuit_info.corners
+                                num_corners = len(corners)
+                                
+                                fig_track.add_trace(go.Scatter(
+                                    x=corners['X'],
+                                    y=corners['Y'],
+                                    mode='markers+text',
+                                    marker=dict(size=10, color='white', line=dict(width=2, color='black')),
+                                    text=corners['Number'].astype(str) + corners['Letter'],
+                                    textposition='top center',
+                                    textfont=dict(color='white', size=12, family="Arial Black"),
+                                    name='Corners'
+                                ))
+                            except Exception:
+                                num_corners = "N/A"
+                            
+                            fig_track.update_layout(
+                                xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                                yaxis=dict(showgrid=False, zeroline=False, showticklabels=False, scaleanchor="x", scaleratio=1),
+                                template="plotly_dark",
+                                height=650,
+                                plot_bgcolor='rgba(0,0,0,0)',
+                                paper_bgcolor='rgba(0,0,0,0)',
+                                margin=dict(l=0, r=0, t=30, b=0),
+                                legend=dict(
+                                    orientation="h",
+                                    yanchor="bottom",
+                                    y=1.02,
+                                    xanchor="center",
+                                    x=0.5
+                                )
+                            )
+                            
+                            col1, col2 = st.columns([3, 1])
+                            with col1:
+                                st.plotly_chart(fig_track, use_container_width=True)
+                            
+                            with col2:
+                                st.markdown("### 🏁 Track Facts")
+                                event = session.event
+                                st.info(f"**Location:** {event.get('Location', 'N/A')}, {event.get('Country', 'N/A')}")
+                                st.info(f"**Event Format:** {event.get('EventFormat', 'N/A').title()}")
+                                st.info(f"**Corners:** {num_corners}")
+                                
+                                st.markdown(f"### 🏆 {selected_year} Track Record")
+                                record_lap = get_yearly_track_record(selected_year, selected_race_name)
+                                if record_lap is not None and not pd.isna(record_lap.get('LapTime')):
+                                    time_str = str(record_lap['LapTime'])[10:19]
+                                    st.metric("Best Lap Time", time_str)
+                                    st.metric("Driver", record_lap['Driver'])
+                                    st.metric("Session", "Qualifying")
+                                else:
+                                    st.warning("Track record data unavailable for this selection.")
+                                
+                    except Exception as e:
+                        st.error(f"Error generating track map: {e}")
+
     elif page == "🏎️ Driver Battle":
         st.title("⚔️ Head-to-Head Telemetry")
         st.markdown("Compare the fastest laps of two drivers in detail.")
@@ -260,7 +354,6 @@ def main():
                         )
                         st.plotly_chart(fig_delta, use_container_width=True)
 
-    # --- ABOUT ---
     elif page == "ℹ️ About":
         st.title("About LetsGoF1")
         st.info("Built with Python & Streamlit")
@@ -268,5 +361,4 @@ def main():
         st.write("Build By Danvanthram KK")
 
 if __name__ == "__main__":
-
     main()
