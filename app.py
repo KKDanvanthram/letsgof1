@@ -150,7 +150,7 @@ def main():
                 if 'session' in st.session_state and st.session_state['session'].event['EventName'] == selected_race_name:
                     session = st.session_state['session']
                     
-                    tab1, tab2, tab3, tab4, tab5 = st.tabs(["🏆 Classification", "🍩 Tyre Strategy", "📉 Lap Pace", "🌧️ Weather", "🗺️ Track Map"])
+                    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["🏆 Classification", "🍩 Tyre Strategy", "📉 Lap Pace", "📈 Position Chart", "🌧️ Weather", "🗺️ Track Map"])
                     
                     with tab1:
                         results = session.results
@@ -212,6 +212,23 @@ def main():
                         st.plotly_chart(fig_pace, use_container_width=True)
 
                     with tab4:
+                        st.subheader("Race Position Progression")
+                        laps_pos = session.laps[['LapNumber', 'Position', 'Driver']].dropna()
+                        if not laps_pos.empty:
+                            finishing_order = session.results.sort_values(by='Position')['Abbreviation'].tolist() if 'Position' in session.results else session.results['Abbreviation'].tolist()
+                            fig_pos = px.line(
+                                laps_pos, x="LapNumber", y="Position", color="Driver",
+                                category_orders={"Driver": finishing_order},
+                                title="Lap-by-Lap Position Changes",
+                                markers=False
+                            )
+                            fig_pos.update_yaxes(autorange="reversed", tickmode='linear', dtick=1)
+                            fig_pos.update_layout(template="plotly_dark", height=700, xaxis_title="Lap Number", yaxis_title="Position")
+                            st.plotly_chart(fig_pos, use_container_width=True)
+                        else:
+                            st.info("Position data not available for this session.")
+
+                    with tab5:
                         weather = session.weather_data
                         weather['TimeMin'] = weather['Time'].dt.total_seconds() / 60
                         fig_weather = px.line(
@@ -221,12 +238,17 @@ def main():
                         fig_weather.update_layout(template="plotly_dark", xaxis_title="Time (Minutes)")
                         st.plotly_chart(fig_weather, use_container_width=True)
 
-                    with tab5:
+                    with tab6:
                         st.subheader(f"🗺️ Detailed Track Layout: {selected_race_name}")
+                        map_metric = st.radio("Select Track Metric to Overlay:", ["Speed (km/h)", "Gear"], horizontal=True)
+                        
                         try:
                             with st.spinner("Generating Detailed Track Map..."):
                                 fastest_lap = session.laps.pick_fastest()
                                 tel = fastest_lap.get_telemetry()
+                                
+                                color_col = 'Speed' if "Speed" in map_metric else 'nGear'
+                                colorscale = 'Inferno' if "Speed" in map_metric else 'Turbo'
                                 
                                 fig_track = go.Figure()
                                 
@@ -236,12 +258,12 @@ def main():
                                     mode='markers',
                                     marker=dict(
                                         size=5,
-                                        color=tel['Speed'],
-                                        colorscale='Inferno',
+                                        color=tel[color_col],
+                                        colorscale=colorscale,
                                         showscale=True,
-                                        colorbar=dict(title="Speed (km/h)", x=1.02)
+                                        colorbar=dict(title=map_metric, x=1.02)
                                     ),
-                                    name='Speed Trace'
+                                    name='Telemetry Trace'
                                 ))
                                 
                                 try:
