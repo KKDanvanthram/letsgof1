@@ -150,7 +150,7 @@ def main():
                 if 'session' in st.session_state and st.session_state['session'].event['EventName'] == selected_race_name:
                     session = st.session_state['session']
                     
-                    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["🏆 Classification", "🍩 Tyre Strategy", "📉 Lap Pace", "📈 Position Chart", "🌧️ Weather", "🗺️ Track Map"])
+                    tab1, tab2, tab3, tab4, tab5 = st.tabs(["🏆 Classification", "🍩 Tyre Strategy", "📈 Position Chart", "🌧️ Weather", "🗺️ Track Map"])
                     
                     with tab1:
                         results = session.results
@@ -197,21 +197,6 @@ def main():
                         st.plotly_chart(fig_tyres, use_container_width=True)
 
                     with tab3:
-                        st.subheader("Lap Time Consistency (Box Plot)")
-                        laps = session.laps.pick_quicklaps()
-                        laps['LapTimeSec'] = laps['LapTime'].dt.total_seconds()
-                        finishing_order = session.results.sort_values(by='Position')['Abbreviation'].tolist() if 'Position' in session.results else session.results['Abbreviation'].tolist()
-                        
-                        fig_pace = px.box(
-                            laps, 
-                            x="Driver", y="LapTimeSec", color="Team",
-                            category_orders={"Driver": finishing_order},
-                            title="Lap Time Distribution (Lower is Better/Faster)"
-                        )
-                        fig_pace.update_layout(template="plotly_dark", height=600)
-                        st.plotly_chart(fig_pace, use_container_width=True)
-
-                    with tab4:
                         st.subheader("Race Position Progression")
                         laps_pos = session.laps[['LapNumber', 'Position', 'Driver']].dropna()
                         if not laps_pos.empty:
@@ -228,7 +213,7 @@ def main():
                         else:
                             st.info("Position data not available for this session.")
 
-                    with tab5:
+                    with tab4:
                         weather = session.weather_data
                         weather['TimeMin'] = weather['Time'].dt.total_seconds() / 60
                         fig_weather = px.line(
@@ -238,7 +223,7 @@ def main():
                         fig_weather.update_layout(template="plotly_dark", xaxis_title="Time (Minutes)")
                         st.plotly_chart(fig_weather, use_container_width=True)
 
-                    with tab6:
+                    with tab5:
                         st.subheader(f"🗺️ Detailed Track Layout: {selected_race_name}")
                         map_metric = st.radio("Select Track Metric to Overlay:", ["Speed (km/h)", "Gear"], horizontal=True)
                         
@@ -325,6 +310,17 @@ def main():
                         except Exception as e:
                             st.error(f"Error generating track map: {e}")
 
+                    # --- ADDED: Chart Descriptions for Race Analysis ---
+                    st.markdown("---")
+                    with st.expander("📖 Guide: How to understand these charts"):
+                        st.markdown("""
+                        - **🏆 Classification:** Shows the final race results, including finishing positions, points scored, and total race time.
+                        - **🍩 Tyre Strategy:** Visualizes the tyre choices made by each driver. The colored bars show which compound (Soft, Medium, Hard, etc.) was used, and the length of the bar represents how many laps the driver stayed out on that set of tyres.
+                        - **📈 Position Chart:** Tracks every driver's position lap-by-lap. A line going up indicates the driver overtook others; a line dropping sharply usually indicates a pit stop or an incident on track.
+                        - **🌧️ Weather:** Displays how the Air Temperature, Track Temperature, and Humidity fluctuated throughout the race session.
+                        - **🗺️ Track Map:** An overhead view of the racing circuit. You can toggle between Speed or Gear overlays to see exactly where drivers are pushing the hardest and where they are braking for corners. The white circles denote official track corner numbers.
+                        """)
+
     elif page == "🏎️ Driver Battle":
         st.title("⚔️ Head-to-Head Telemetry")
         st.markdown("Compare the fastest laps of two drivers in detail.")
@@ -389,6 +385,16 @@ def main():
                                     template="plotly_dark"
                                 )
                                 st.plotly_chart(fig_delta, use_container_width=True)
+
+                                # --- ADDED: Chart Descriptions for Driver Battle ---
+                                st.markdown("---")
+                                with st.expander("📖 Guide: How to understand the telemetry"):
+                                    st.markdown("""
+                                    - **Speed Trace:** Compares the exact speed (in km/h) of both drivers across the entire distance of the track. You can easily spot who carries more speed into corners or who reaches a higher top speed on the straights.
+                                    - **Throttle Application:** Shows how much pressure drivers are applying to the accelerator pedal (0% to 100%). It reveals who gets on the power earlier when exiting corners.
+                                    - **Braking Points:** Displays where and how forcefully drivers are hitting the brakes. Sharp spikes indicate heavy braking zones. You can use this to see who is braking later into corners.
+                                    - **Time Delta:** Shows the rolling time difference (in seconds) between the two drivers over the course of the lap. If the line goes up above zero, Driver 1 is gaining time. If it dips below zero, Driver 2 is gaining time.
+                                    """)
                         except Exception as e:
                             st.error(f"Telemetry not available for this session. ({e})")
             else:
