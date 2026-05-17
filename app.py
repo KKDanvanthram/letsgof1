@@ -33,7 +33,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-@st.cache_data(ttl=3600)  # Added TTL to prevent Streamlit from permanently caching an empty dataframe when new seasons release
+@st.cache_data(ttl=3600)
 def get_schedule(year):
     try:
         schedule = fastf1.get_event_schedule(year)
@@ -61,7 +61,6 @@ def get_next_race(schedule):
     
     if not schedule.empty:
         date_col = 'Session5Date' if 'Session5Date' in schedule.columns else 'EventDate'
-        # errors='coerce' gracefully handles missing dates (NaT) for unconfirmed sessions
         schedule[date_col] = pd.to_datetime(schedule[date_col], utc=True, errors='coerce')
         
         future_races = schedule[schedule[date_col] >= now]
@@ -74,19 +73,15 @@ def main():
     st.sidebar.title("LetsGoF1")
     st.sidebar.caption("The Ultimate Data Dashboard")
 
-    # Changed index to 0 so 2026 is selected by default
     selected_year = st.sidebar.selectbox("Select Season", [2026, 2025, 2024, 2023, 2022], index=0)
-    
     page = st.sidebar.radio("Navigation", ["🏠 Home Hub", "📊 Race Analysis", "🏎️ Driver Battle", "ℹ️ About"])
 
     if page == "🏠 Home Hub":
         st.title(f"📅 {selected_year} Season Command Center")
-        
         schedule = get_schedule(selected_year)
         
         if not schedule.empty:
             next_race, date_col = get_next_race(schedule)
-            
             if next_race is not None:
                 st.markdown("### 🚀 Next Grand Prix")
                 c1, c2, c3 = st.columns([2, 1, 1])
@@ -104,7 +99,6 @@ def main():
                         st.metric("Date", "TBD")
 
             st.markdown("---")
-            
             st.subheader("🗓️ Full Calendar")
             display_cols = ['RoundNumber', 'EventName', 'Location', 'Session5Date'] if 'Session5Date' in schedule.columns else ['RoundNumber', 'EventName', 'Location', 'EventDate']
             
@@ -122,7 +116,6 @@ def main():
 
     elif page == "📊 Race Analysis":
         st.title("📊 Grand Prix Analytics")
-        
         schedule = get_schedule(selected_year)
         
         if schedule.empty:
@@ -173,19 +166,13 @@ def main():
                     with tab2:
                         st.subheader("Tyre Compounds & Stint Lengths")
                         laps = session.laps
-                        
                         stints = laps[["Driver", "Stint", "Compound", "LapNumber"]].groupby(
                             ["Driver", "Stint", "Compound"]
                         ).count().reset_index().rename(columns={"LapNumber": "Laps"})
-                        
                         stints = stints.sort_values(by=['Driver', 'Stint'])
 
                         fig_tyres = px.bar(
-                            stints, 
-                            x="Laps", 
-                            y="Driver", 
-                            color="Compound", 
-                            orientation='h',
+                            stints, x="Laps", y="Driver", color="Compound", orientation='h',
                             title="Tyre Strategy History",
                             color_discrete_map={
                                 "SOFT": "#FF3333", "MEDIUM": "#FFE933", "HARD": "#F0F0F0", 
@@ -204,8 +191,7 @@ def main():
                             fig_pos = px.line(
                                 laps_pos, x="LapNumber", y="Position", color="Driver",
                                 category_orders={"Driver": finishing_order},
-                                title="Lap-by-Lap Position Changes",
-                                markers=False
+                                title="Lap-by-Lap Position Changes", markers=False
                             )
                             fig_pos.update_yaxes(autorange="reversed", tickmode='linear', dtick=1)
                             fig_pos.update_layout(template="plotly_dark", height=700, xaxis_title="Lap Number", yaxis_title="Position")
@@ -231,22 +217,15 @@ def main():
                             with st.spinner("Generating Detailed Track Map..."):
                                 fastest_lap = session.laps.pick_fastest()
                                 tel = fastest_lap.get_telemetry()
-                                
                                 color_col = 'Speed' if "Speed" in map_metric else 'nGear'
                                 colorscale = 'Inferno' if "Speed" in map_metric else 'Turbo'
                                 
                                 fig_track = go.Figure()
-                                
                                 fig_track.add_trace(go.Scatter(
-                                    x=tel['X'], 
-                                    y=tel['Y'], 
-                                    mode='markers',
+                                    x=tel['X'], y=tel['Y'], mode='markers',
                                     marker=dict(
-                                        size=5,
-                                        color=tel[color_col],
-                                        colorscale=colorscale,
-                                        showscale=True,
-                                        colorbar=dict(title=map_metric, x=1.02)
+                                        size=5, color=tel[color_col], colorscale=colorscale,
+                                        showscale=True, colorbar=dict(title=map_metric, x=1.02)
                                     ),
                                     name='Telemetry Trace'
                                 ))
@@ -257,9 +236,7 @@ def main():
                                     num_corners = len(corners)
                                     
                                     fig_track.add_trace(go.Scatter(
-                                        x=corners['X'],
-                                        y=corners['Y'],
-                                        mode='markers+text',
+                                        x=corners['X'], y=corners['Y'], mode='markers+text',
                                         marker=dict(size=10, color='white', line=dict(width=2, color='black')),
                                         text=corners['Number'].astype(str) + corners['Letter'],
                                         textposition='top center',
@@ -272,24 +249,15 @@ def main():
                                 fig_track.update_layout(
                                     xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
                                     yaxis=dict(showgrid=False, zeroline=False, showticklabels=False, scaleanchor="x", scaleratio=1),
-                                    template="plotly_dark",
-                                    height=650,
-                                    plot_bgcolor='rgba(0,0,0,0)',
-                                    paper_bgcolor='rgba(0,0,0,0)',
+                                    template="plotly_dark", height=650,
+                                    plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
                                     margin=dict(l=0, r=0, t=30, b=0),
-                                    legend=dict(
-                                        orientation="h",
-                                        yanchor="bottom",
-                                        y=1.02,
-                                        xanchor="center",
-                                        x=0.5
-                                    )
+                                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5)
                                 )
                                 
                                 col1, col2 = st.columns([3, 1])
                                 with col1:
                                     st.plotly_chart(fig_track, use_container_width=True)
-                                
                                 with col2:
                                     st.markdown("### 🏁 Track Facts")
                                     event = session.event
@@ -310,15 +278,29 @@ def main():
                         except Exception as e:
                             st.error(f"Error generating track map: {e}")
 
-                    # --- ADDED: Chart Descriptions for Race Analysis ---
+                    # --- UPDATED: Engineering & Strategy Explanations ---
                     st.markdown("---")
-                    with st.expander("📖 Guide: How to understand these charts"):
+                    with st.expander("🔬 F1 Race Strategy & Weather Analysis Guide"):
                         st.markdown("""
-                        - **🏆 Classification:** Shows the final race results, including finishing positions, points scored, and total race time.
-                        - **🍩 Tyre Strategy:** Visualizes the tyre choices made by each driver. The colored bars show which compound (Soft, Medium, Hard, etc.) was used, and the length of the bar represents how many laps the driver stayed out on that set of tyres.
-                        - **📈 Position Chart:** Tracks every driver's position lap-by-lap. A line going up indicates the driver overtook others; a line dropping sharply usually indicates a pit stop or an incident on track.
-                        - **🌧️ Weather:** Displays how the Air Temperature, Track Temperature, and Humidity fluctuated throughout the race session.
-                        - **🗺️ Track Map:** An overhead view of the racing circuit. You can toggle between Speed or Gear overlays to see exactly where drivers are pushing the hardest and where they are braking for corners. The white circles denote official track corner numbers.
+                        ### 🏆 Final Race Classification
+                        * **What it shows:** The ultimate finishing positions, official pit gaps, and DNFs.
+                        * **Strategic Insight:** Look at the `Status` column. A high volume of accidents or mechanical failures often correlates with extreme weather conditions—such as sudden rain drop-offs or immense track heat reducing engine cooling performance.
+
+                        ### 🍩 Tyre Strategy History
+                        * **What it shows:** Which compound each driver used across their distinct stints and how long they lasted.
+                        * **Strategic Insight:** **High Track Temperatures** (above 40°C) melt soft compound tyres quickly via thermal degradation, forcing teams onto Harder compounds or early multi-stop pit windows. Conversely, in freezing environments, cars will struggle to inject heat into Hard tyres, making the Soft compound the preferred baseline for longer stints.
+
+                        ### 📈 Lap-by-Lap Position Changes
+                        * **What it shows:** Positional tracking across all laps of the grand prix.
+                        * **Strategic Insight:** Steep drops reveal pit stops. Look at how drivers dropping into clean air can run faster lap paces than drivers trapped in a "DRS train" where hot, turbulent air from the car in front reduces downforce and overheats the front axles.
+
+                        ### 🌧️ Weather Evolution During Race
+                        * **What it shows:** Real-time logging of Air Temperature, Track Temperature, and Humidity.
+                        * **Strategic Insight:** **Track Temperature is highly sensitive to cloud cover.** When clouds block the sun, track temperatures can plummet by up to 10°C in minutes, moving the mechanical grip balance completely. High humidity increases air density, adding aerodynamic drag on high-speed straights but boosting radiator air density for optimal internal combustion cooling.
+
+                        ### 🗺️ Detailed Track Layout Telemetry
+                        * **What it shows:** Overlay profiles of Speed or Gear shifts pinned against geometric coordinates.
+                        * **Strategic Insight:** High track heat forces drivers into modified racing lines. Drivers may compromise their corner mid-speed to avoid sliding, which introduces tyre friction and localized rubber blistering. Use this track trace to see where drivers run out of top-end gear tracking on low-grip track days.
                         """)
 
     elif page == "🏎️ Driver Battle":
@@ -386,14 +368,21 @@ def main():
                                 )
                                 st.plotly_chart(fig_delta, use_container_width=True)
 
-                                # --- ADDED: Chart Descriptions for Driver Battle ---
+                                # --- UPDATED: Telemetry Telemetry Engineering Explanations ---
                                 st.markdown("---")
-                                with st.expander("📖 Guide: How to understand the telemetry"):
+                                with st.expander("🔬 Telemetry Engineering & Environmental Impacts"):
                                     st.markdown("""
-                                    - **Speed Trace:** Compares the exact speed (in km/h) of both drivers across the entire distance of the track. You can easily spot who carries more speed into corners or who reaches a higher top speed on the straights.
-                                    - **Throttle Application:** Shows how much pressure drivers are applying to the accelerator pedal (0% to 100%). It reveals who gets on the power earlier when exiting corners.
-                                    - **Braking Points:** Displays where and how forcefully drivers are hitting the brakes. Sharp spikes indicate heavy braking zones. You can use this to see who is braking later into corners.
-                                    - **Time Delta:** Shows the rolling time difference (in seconds) between the two drivers over the course of the lap. If the line goes up above zero, Driver 1 is gaining time. If it dips below zero, Driver 2 is gaining time.
+                                    ### 🏎️ Speed Trace Analysis
+                                    * **How Environmental Factors Apply:** On tracks with high tailwinds, top speeds down the main straight drop significantly because of added atmospheric resistance. Check corner apexes: when track temperatures spike, the tyre compound grows greasy, causing cars to slide more and forcing lower speed valleys at the sharpest corner apex points.
+
+                                    ### 🍩 Throttle Application Profiles
+                                    * **How Environmental Factors Apply:** In damp setups or scorching track surfaces where rear tyres easily slip, you will see a progressive, staggered curve rather than a vertical step up to 100% throttle. Drivers must step on the power softly to avoid lighting up the rear wheels and destroying the surface rubber compound.
+
+                                    ### 🛑 Braking Points Comparison
+                                    * **How Environmental Factors Apply:** Headwinds down a straight act as an aerodynamic brake, enabling drivers to drop their braking points deeper into the corner. If a driver experiences a tailwind, stopping distances lengthen. A driver missing their braking marker or braking early often indicates an attempt to limit tire lockups on low-grip asphalt.
+
+                                    ### ⏱️ Micro-Sector Time Delta
+                                    * **How Environmental Factors Apply:** This trace explicitly registers who handles moving environmental states cleaner. If one driver's engine setup handles cooling better in hot environments, they will consistently pull time gaps along straight sectors. If a driver has dialed in a superior downforce trim, their delta will rise sharply through fast, twisting high-speed corners.
                                     """)
                         except Exception as e:
                             st.error(f"Telemetry not available for this session. ({e})")
